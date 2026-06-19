@@ -68,7 +68,7 @@ The gap between the two rows is the core scientific argument of this project: si
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/abd/wesad-stress-detection.git
+   git clone https://github.com/masum-abid/wesad-stress-detection.git
    cd wesad-stress-detection
    ```
 2. Install dependencies:
