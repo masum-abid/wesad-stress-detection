@@ -79,7 +79,7 @@ The gap between the two rows is the core scientific argument of this project: si
 
 4. Run the processing pipeline:
    ```bash
-   python test_run.py
+   python run_pipeline.py
    ```
    *(Note: requires ~15 mins for full DSP calculations across 15 subjects)*
 
