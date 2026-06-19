@@ -4,97 +4,130 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from src.models import train_and_evaluate_loso
 
-# --- Page Configuration ---
 st.set_page_config(page_title="Stress Detection Pipeline", page_icon="🫀", layout="wide")
 
-# --- Data Loading & Caching ---
-# We use st.cache_data so the model doesn't retrain every time the user clicks a button!
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data/processed/wesad_features_master.csv')
+    df = pd.read_csv('data/features_all_subjects.csv')
     return df.dropna()
 
-@st.cache_data
-def run_model(_df):
-    return train_and_evaluate_loso(_df)
+@st.cache_resource
+def run_model():
+    df = load_data()
+    return train_and_evaluate_loso(df)
 
-# --- App Layout ---
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/FAU_Logo.svg/512px-FAU_Logo.svg.png", width=150)
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Project Overview", "Model Performance", "Subject Analysis"])
+st.sidebar.markdown("## 🫀 Stress Detection")
+st.sidebar.markdown("*WESAD · 15 Subjects · LOSO CV*")
+st.sidebar.divider()
+page = st.sidebar.radio("Navigation", ["Project Overview", "Model Performance", "Subject Analysis"])
 
 st.title("Wearable Biometrics: Acute Stress Detection")
 st.markdown("*An end-to-end machine learning pipeline for processing time-series physiological data.*")
 
-# Load data into memory
 df = load_data()
 
 if page == "Project Overview":
     st.header("🔬 Research Question")
     st.info("**Can physiological signals from a wearable chest device reliably distinguish acute psychosocial stress from a resting baseline, and which signals contribute most to that prediction?**")
-    
-    st.write("### The Dataset: WESAD")
-    st.write("This pipeline utilizes the WESAD (Wearable Stress and Affect Detection) dataset. We extracted raw 700Hz chest sensor data (ECG, EDA, Respiration, Temperature) from 15 subjects.")
-    
-    st.write("### The Engineering Pipeline")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Subjects", "15")
+    col2.metric("Validation", "LOSO CV")
+    col3.metric("Window Size", "60s")
+
+    st.write("### The WESAD Dataset")
+    st.write("Raw 700Hz chest sensor data (ECG, EDA, Respiration, Temperature) from 15 subjects undergoing the Trier Social Stress Test (TSST).")
+
+    st.write("### Pipeline")
     st.markdown("""
-    1. **Signal Processing:** Filtered raw voltage signals using `NeuroKit2`.
-    2. **Feature Extraction:** Extracted Heart Rate Variability (HRV) and Tonic/Phasic skin conductance using a 60-second sliding window.
-    3. **Machine Learning:** Trained a Random Forest classifier using Leave-One-Subject-Out (LOSO) Cross-Validation to prevent data leakage.
+    1. **Signal Processing** — Filtered raw voltage signals using `NeuroKit2`
+    2. **Feature Extraction** — HRV and Tonic/Phasic skin conductance over 60-second sliding windows
+    3. **Machine Learning** — Random Forest with LOSO cross-validation to prevent data leakage
     """)
-    
+    st.write("### Feature Matrix Preview")
     st.dataframe(df.head(10), use_container_width=True)
 
 elif page == "Model Performance":
     st.header("📊 Model Evaluation (LOSO Cross-Validation)")
-    
-    with st.spinner("Training model across 15 folds..."):
-        results = run_model(df)
-    
+
+    with st.spinner("Running LOSO across 15 folds — this may take a moment..."):
+        results = run_model()
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("Average Accuracy", f"{results['accuracy'] * 100:.1f}%")
-    col2.metric("Average F1-Score", f"{results['f1_score'] * 100:.1f}%")
+    col1.metric("Average Accuracy", f"{results['accuracy']*100:.1f}%")
+    col2.metric("Average F1-Score", f"{results['f1_score']*100:.1f}%")
     col3.metric("Validation Strategy", "LOSO (15 Folds)")
-    
+
+    st.write("---")
+    st.subheader("📌 Why LOSO? The Generalization Gap")
+    comparison_df = pd.DataFrame({
+        'Evaluation Type': ['Within-Subject (S2 only)', 'LOSO Cross-Subject (15 subjects)'],
+        'Accuracy': ['93.3%', f"{results['accuracy']*100:.1f}%"],
+        'F1 Score': ['92.0%', f"{results['f1_score']*100:.1f}%"],
+        'Realistic?': ['❌ Overoptimistic', '✅ Generalizable']
+    })
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+    st.caption("Training and testing on the same subject inflates performance. LOSO ensures each subject is tested on a model that has never seen their data.")
+
     st.write("---")
     st.subheader("Feature Importance")
-    st.write("Which physiological signals provided the highest predictive power?")
-    
-    # Plot feature importances
     importances = results['feature_importances']
     fig, ax = plt.subplots(figsize=(10, 5))
     sns.barplot(x=list(importances.values()), y=list(importances.keys()), palette="viridis", ax=ax)
-    ax.set_xlabel("Mean Decrease in Impurity (Random Forest)")
+    ax.set_xlabel("Mean Decrease in Impurity")
     ax.set_title("Signal Contribution to Stress Detection")
+    st.pyplot(fig)
+
+    st.write("---")
+    st.subheader("Per-Subject LOSO Accuracy")
+    per_subject_df = pd.DataFrame(results['per_subject']).sort_values('accuracy')
+    fig, ax = plt.subplots(figsize=(10, 5))
+    colors = ['#e05c5c' if s == selected_subject else '#4682b4' 
+            for s in per_subject_df['subject']]  # highlight selected
+    sns.barplot(data=per_subject_df, x='subject', y='accuracy', palette='Blues_d', ax=ax)
+    ax.axhline(results['accuracy'], color='red', linestyle='--', label=f"Mean: {results['accuracy']:.3f}")
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("Accuracy")
+    ax.set_xlabel("Subject ID")
+    ax.set_title("LOSO Accuracy per Subject")
+    ax.legend()
     st.pyplot(fig)
 
 elif page == "Subject Analysis":
     st.header("👤 Individual Subject Visualization")
-    
-    subjects = df['Subject_ID'].unique()
-    selected_subject = st.selectbox("Select a Subject to View", subjects)
-    
-    subj_df = df[df['Subject_ID'] == selected_subject].reset_index()
-    
-    st.write(f"### Physiological Response over Time for {selected_subject}")
-    
-    # Create a 2-row plot: HR on top, EDA on bottom, colored by stress state
+
+    subjects = sorted(df['Subject_ID'].unique())
+    selected_subject = st.selectbox("Select a Subject", subjects)
+    subj_df = df[df['Subject_ID'] == selected_subject].reset_index(drop=True)
+
+    with st.spinner("Running LOSO..."):
+        results = run_model()
+
+    per_subject_df = pd.DataFrame(results['per_subject'])
+    subj_row = per_subject_df[per_subject_df['subject'] == selected_subject]
+
+    if not subj_row.empty:
+        subj_acc = subj_row.iloc[0]['accuracy']
+        st.metric(
+            f"LOSO Accuracy for {selected_subject}",
+            f"{subj_acc*100:.1f}%",
+            delta=f"{(subj_acc - results['accuracy'])*100:.1f}% vs average"
+        )
+
+    st.write(f"### Physiological Response over Time — {selected_subject}")
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
-    
-    # Scatter plot for Heart Rate
-    sns.scatterplot(data=subj_df, x=subj_df.index, y='Mean_HR', hue='Label', 
-                    palette={0: 'blue', 1: 'red'}, ax=ax1, legend=False)
+
+    sns.scatterplot(data=subj_df, x=subj_df.index, y='Mean_HR', hue='Label',
+                    palette={0: '#4682b4', 1: '#e05c5c'}, ax=ax1, legend=False, s=15)
     ax1.set_ylabel("Heart Rate (BPM)")
-    ax1.set_title("Heart Rate Response (Blue = Baseline, Red = Stress)")
-    
-    # Scatter plot for EDA Tonic
-    sns.scatterplot(data=subj_df, x=subj_df.index, y='EDA_Tonic_Mean', hue='Label', 
-                    palette={0: 'blue', 1: 'red'}, ax=ax2)
+    ax1.set_title("Heart Rate  (Blue = Baseline · Red = Stress)")
+
+    sns.scatterplot(data=subj_df, x=subj_df.index, y='EDA_Tonic_Mean', hue='Label',
+                    palette={0: '#4682b4', 1: '#e05c5c'}, ax=ax2, s=15)
     ax2.set_ylabel("Skin Conductance (Tonic)")
-    ax2.set_xlabel("Time (Minutes)")
-    
-    # Clean up legend
+    ax2.set_xlabel("Window Index")
     handles, labels = ax2.get_legend_handles_labels()
     ax2.legend(handles, ['Baseline', 'Stress'], loc='upper right')
-    
+
+    plt.tight_layout()
     st.pyplot(fig)
