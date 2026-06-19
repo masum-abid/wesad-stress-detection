@@ -82,8 +82,6 @@ elif page == "Model Performance":
     st.subheader("Per-Subject LOSO Accuracy")
     per_subject_df = pd.DataFrame(results['per_subject']).sort_values('accuracy')
     fig, ax = plt.subplots(figsize=(10, 5))
-    colors = ['#e05c5c' if s == selected_subject else '#4682b4' 
-            for s in per_subject_df['subject']]  # highlight selected
     sns.barplot(data=per_subject_df, x='subject', y='accuracy', palette='Blues_d', ax=ax)
     ax.axhline(results['accuracy'], color='red', linestyle='--', label=f"Mean: {results['accuracy']:.3f}")
     ax.set_ylim(0, 1.05)
