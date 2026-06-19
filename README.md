@@ -44,7 +44,7 @@ The gap between the two rows is the core scientific argument of this project: si
 ---
 
 ## Repository Structure
-
+```
 ├── notebooks/
 │ ├── 01_exploration.ipynb # Raw signal inspection (S2)
 │ ├── 02_visualization.ipynb # Stress vs baseline visualizations (S2)
@@ -60,7 +60,7 @@ The gap between the two rows is the core scientific argument of this project: si
 ├── data/ # WESAD dataset (not included, see below)
 ├── app.py # Streamlit dashboard
 └── requirements.txt
-
+```
 
 ---
 
