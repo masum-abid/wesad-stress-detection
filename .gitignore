@@ -220,3 +220,5 @@ __marimo__/
 
 # local data directory
 data/
+data/processed
+models/
